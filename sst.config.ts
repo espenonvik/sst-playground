@@ -1,6 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/triple-slash-reference
-/// <reference path="./.sst/platform/config.d.ts" />
-
 export default $config({
   app(input) {
     return {
@@ -10,12 +7,23 @@ export default $config({
       region: "eu-north-1",
       providers: {
         aws: {
-          profile: input.stage === "production" ? "tidya-production" : "tidya-dev"
-        }
-      }
+          profile:
+            input.stage === "production" ? "tidya-production" : "tidya-dev",
+        },
+      },
     };
   },
   async run() {
-    new sst.aws.Nextjs("MyWeb");
+    const table = new sst.aws.Dynamo("MyTable", {
+      fields: {
+        userId: "string",
+        noteId: "string",
+      },
+      primaryIndex: { hashKey: "userId", rangeKey: "noteId" },
+    });
+
+    new sst.aws.Nextjs("MyWeb", {
+      link: [table],
+    });
   },
 });
