@@ -1,10 +1,17 @@
 import Image from "next/image";
 import { Resource } from "sst";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  QueryCommand,
+  ScanCommand,
+} from "@aws-sdk/lib-dynamodb";
+import { AttributeValue, DynamoDBClient } from "@aws-sdk/client-dynamodb";
+
+const client = DynamoDBDocumentClient.from(new DynamoDBClient());
 
 export default async function Home() {
-  const client = DynamoDBDocumentClient.from(new DynamoDBClient());
+  const users = await get();
+
   const response = await client.send(
     new QueryCommand({
       TableName: Resource.MyTable.name,
@@ -15,6 +22,32 @@ export default async function Home() {
     }),
   );
   console.log(response);
+
+  async function get() {
+    let last: Record<string, AttributeValue> | undefined;
+    const results = [];
+    while (true) {
+      const response = await client.send(
+        new ScanCommand({
+          TableName: Resource.MyTable.name,
+          ExclusiveStartKey: last,
+        }),
+      );
+
+      results.push(...response.Items!);
+      if (!response.LastEvaluatedKey) {
+        break;
+      }
+
+      last = response.LastEvaluatedKey;
+    }
+    console.log("from scan:", results);
+
+    return results.map((item) => ({
+      userId: item.userId,
+      noteId: item.noteId,
+    }));
+  }
 
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
@@ -28,14 +61,14 @@ export default async function Home() {
           priority
         />
         <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
+          {users &&
+            users.map((user) => {
+              return (
+                <li key={user.userId}>
+                  {user.userId} - {user.noteId}
+                </li>
+              );
+            })}
         </ol>
 
         <div className="flex gap-4 items-center flex-col sm:flex-row">
